@@ -1,0 +1,40 @@
+# Configuração do bot. Tudo aqui é opcional: o que faltar usa o padrão do código.
+
+filtros:
+  # Nº mínimo de jogadores no co-op. A Steam NÃO informa isso na API: o bot lê a descrição
+  # do jogo ("up to 4 players", "2-4 players"...). Se não achar nada, vale o campo abaixo.
+  jogadores_min: 4
+  jogadores_desconhecido: aceitar   # aceitar | rejeitar (quando a descrição não diz o nº de jogadores)
+  # Correções manuais: appid da Steam -> máximo de jogadores real
+  jogadores_override: {}
+  #  1426210: 2      # It Takes Two
+  #  548430: 4       # Deep Rock Galactic
+
+  # Descarta jogos com nota abaixo desta. Escala da Steam (da melhor para a pior):
+  #   Extremamente positivas > Muito positivas > Positivas > Majoritariamente positivas > Mistas > ...
+  # "Ligeiramente positivas" é aceito como apelido de "Majoritariamente positivas" (Mostly Positive).
+  avaliacao_minima: "Majoritariamente positivas"
+
+promocoes:
+  desconto_min: 50          # % mínimo
+  max_por_dia: 8            # jogos no resumo diário
+  max_avaliar: 60           # teto de jogos consultados por execução (a Steam tem limite de requisições)
+  repetir_apos_dias: 30     # só reposta o mesmo jogo depois disso
+
+lancamentos:
+  dias_passados: 14         # lançados nos últimos N dias
+  dias_futuros: 21          # ou que lançam nos próximos N dias
+  max_por_execucao: 6
+  permitir_sem_avaliacao: false   # jogo recém-lançado costuma ter poucas reviews
+
+votacao:
+  opcoes: 5                 # 3 a 5 sugestões
+  minimo: 3
+  repetir_apos_dias: 60
+
+epic:
+  pais: BR
+  idioma: pt-BR
+
+estado:
+  retencao_dias: 365

@@ -1,0 +1,92 @@
+name: coopbot
+
+# Os crons do GitHub Actions são em UTC. Brasília = UTC-3 (sem horário de verão desde 2019).
+# Minutos "quebrados" de propósito: em :00 e :30 o GitHub fica congestionado e atrasa/derruba execuções.
+on:
+  schedule:
+    - cron: "17 16 * * 4"   # quinta 16:17 UTC = 13:17 Brasília  -> grátis da Epic
+    - cron: "47 18 * * 4"   # quinta 18:47 UTC = 15:47 Brasília  -> reforço da Epic (não repete o que já postou)
+    - cron: "37 12 * * *"   # diário  12:37 UTC = 09:37 Brasília -> grátis Steam + promoções + lançamentos
+    - cron: "13 21 * * 5"   # sexta   21:13 UTC = 18:13 Brasília -> votação
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "O que rodar"
+        type: choice
+        default: daily
+        options: [daily, epic, promo, lancamentos, gratis, votacao, all]
+      dry_run:
+        description: "Dry-run (só imprime no log, não envia nada nem grava estado)"
+        type: boolean
+        default: true
+      force:
+        description: "Ignorar a janela de dia/hora da Epic e da votação"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # necessário para commitar o state.json
+
+concurrency:
+  group: coopbot      # evita duas execuções gravando o estado ao mesmo tempo
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Escolher job
+        id: pick
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          IN_JOB: ${{ inputs.job }}
+          IN_DRY: ${{ inputs.dry_run }}
+          IN_FORCE: ${{ inputs.force }}
+        run: |
+          case "$SCHEDULE" in
+            "17 16 * * 4"|"47 18 * * 4") job=epic ;;
+            "13 21 * * 5")               job=votacao ;;
+            "37 12 * * *")               job=daily ;;
+            *)                           job="${IN_JOB:-daily}" ;;
+          esac
+          args=""
+          [ "$IN_DRY" = "true" ] && args="$args --dry-run"
+          [ "$IN_FORCE" = "true" ] && args="$args --force"
+          echo "job=$job" >> "$GITHUB_OUTPUT"
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+
+      - name: Rodar bot
+        env:
+          WEBHOOK_GRATIS: ${{ secrets.WEBHOOK_GRATIS }}
+          WEBHOOK_PROMO: ${{ secrets.WEBHOOK_PROMO }}
+          WEBHOOK_LANCAMENTOS: ${{ secrets.WEBHOOK_LANCAMENTOS }}
+          WEBHOOK_VOTACAO: ${{ secrets.WEBHOOK_VOTACAO }}
+          WEBHOOK_LOG: ${{ secrets.WEBHOOK_LOG }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}   # opcional: reações da votação
+          JOB: ${{ steps.pick.outputs.job }}
+          ARGS: ${{ steps.pick.outputs.args }}
+        run: python coopbot.py "$JOB" $ARGS
+
+      - name: Salvar estado
+        if: always()
+        run: |
+          git config user.name "coopbot"
+          git config user.email "coopbot@users.noreply.github.com"
+          git add state.json
+          if git diff --cached --quiet; then
+            echo "Estado sem mudanças."
+          else
+            git commit -m "chore: atualiza estado do bot [skip ci]"
+            git pull --rebase --autostash
+            git push
+          fi
